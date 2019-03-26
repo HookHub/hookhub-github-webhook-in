@@ -24,7 +24,7 @@ router.use(function (req, res, next) {
 // Check X-Hub-Signature
 router.use(xHubSignatureMiddleware({
   algorithm: 'sha1',
-  secret: config.github.secret,
+  secret: config.credentials.secret,
   require: true,
   getRawBody: function (req) {
     return req.rawBody
