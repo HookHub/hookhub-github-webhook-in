@@ -25,7 +25,6 @@ var configurable = function (newConfig) {
   })
 }
 
-
 // Perform sanity check
 router.use(function (req, res, next) {
   if (req.header('X-Hub-Signature') === undefined || req.header('X-Hub-Signature').length < 40 || req.header('X-GitHub-Event') === undefined || req.header('X-GitHub-Event') === '' || req.rawBody === undefined) {
@@ -68,6 +67,8 @@ router.use('/', function (req, res, next) {
   }
 
   res.hookhub.doc = doc
+
+  next()
 })
 
 module.exports = router
