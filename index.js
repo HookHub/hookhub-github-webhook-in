@@ -1,13 +1,30 @@
 /* eslint-disable camelcase */
-var debug = require('debug')('hookhub:hook:github-webhook-in')
+const debug = require('debug')('hookhub:hook:github-webhook-in')
 debug('Loading hookhub:hook:github-webhook-in')
 
-var express = require('express')
-var router = express.Router()
+const express = require('express')
+const router = express.Router()
 const xHubSignatureMiddleware = require('x-hub-signature').middleware
 var hookhubDoc = require('hookhub-doc')
 
-var config = null
+var config = {
+  credentials: {
+    secret: 'x-hub-signature'
+  },
+  options: {}
+}
+var configurable = function (newConfig) {
+  config = newConfig
+  githubSignatureHandler = xHubSignatureMiddleware({
+    algorithm: 'sha1',
+    secret: config.credentials.secret,
+    require: true,
+    getRawBody: function (req) {
+      return req.rawBody
+    }
+  })
+}
+
 
 // Perform sanity check
 router.use(function (req, res, next) {
@@ -22,14 +39,15 @@ router.use(function (req, res, next) {
 })
 
 // Check X-Hub-Signature
-router.use(xHubSignatureMiddleware({
+var githubSignatureHandler = xHubSignatureMiddleware({
   algorithm: 'sha1',
   secret: config.credentials.secret,
   require: true,
   getRawBody: function (req) {
     return req.rawBody
   }
-}))
+})
+router.use(githubSignatureHandler)
 
 /* Default handler. */
 router.use('/', function (req, res, next) {
@@ -53,5 +71,4 @@ router.use('/', function (req, res, next) {
 })
 
 module.exports = router
-module.exports.configurable = true
-module.exports.config = config
+module.exports.configurable = configurable
