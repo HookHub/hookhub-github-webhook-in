@@ -13,6 +13,7 @@ var config = {
   },
   options: {}
 }
+
 var configurable = function (newConfig) {
   config = newConfig
   githubSignatureHandler = xHubSignatureMiddleware({
@@ -28,10 +29,13 @@ var configurable = function (newConfig) {
 // Perform sanity check
 router.use(function (req, res, next) {
   if (req.header('X-Hub-Signature') === undefined || req.header('X-Hub-Signature').length < 40 || req.header('X-GitHub-Event') === undefined || req.header('X-GitHub-Event') === '' || req.rawBody === undefined) {
-    res.status(412).send({
+    res.hookhub.stack.push('hookhub-github-webhook-in')
+    res.hookhub.result = {
       result: 'ERROR',
       message: 'Missing or invalid request arguments'
-    })
+    }
+    res.hookhub.statusCode = 412
+    next('route')
   } else {
     next()
   }
@@ -47,6 +51,10 @@ var githubSignatureHandler = xHubSignatureMiddleware({
   }
 })
 router.use(githubSignatureHandler)
+
+router.use('/', function (req, res, next) {
+  res.hookhub.stack.push('hookhub-github-webhook-in')
+})
 
 /* Default handler. */
 router.use('/', function (req, res, next) {
@@ -67,6 +75,7 @@ router.use('/', function (req, res, next) {
   }
 
   res.hookhub.doc = doc
+  res.hookhub.result = { result: 'OK', message: '' }
 
   next()
 })
