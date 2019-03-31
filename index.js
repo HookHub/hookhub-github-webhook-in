@@ -16,6 +16,7 @@ var config = {
 
 var configurable = function (newConfig) {
   config = newConfig
+  debug('Hot-Plugging githubSignatureHandler')
   githubSignatureHandler = xHubSignatureMiddleware({
     algorithm: 'sha1',
     secret: config.credentials.secret,
@@ -26,21 +27,6 @@ var configurable = function (newConfig) {
   })
 }
 
-// Perform sanity check
-router.use(function (req, res, next) {
-  if (req.header('X-Hub-Signature') === undefined || req.header('X-Hub-Signature').length < 40 || req.header('X-GitHub-Event') === undefined || req.header('X-GitHub-Event') === '' || req.rawBody === undefined) {
-    res.hookhub.stack.push('hookhub-github-webhook-in')
-    res.hookhub.result = {
-      result: 'ERROR',
-      message: 'Missing or invalid request arguments'
-    }
-    res.hookhub.statusCode = 412
-    next('route')
-  } else {
-    next()
-  }
-})
-
 // Check X-Hub-Signature
 var githubSignatureHandler = xHubSignatureMiddleware({
   algorithm: 'sha1',
@@ -50,21 +36,40 @@ var githubSignatureHandler = xHubSignatureMiddleware({
     return req.rawBody
   }
 })
-router.use(githubSignatureHandler)
 
-router.use('/', function (req, res, next) {
-  res.hookhub.stack.push('hookhub-github-webhook-in')
-})
+// Functions
+function stackRegistration (req, res, next) {
+  res.locals.hookhub.stack.push('hookhub-github-webhook-in')
+  next()
+}
 
-/* Default handler. */
-router.use('/', function (req, res, next) {
+function sanityChecks (req, res, next) {
+  debug('Performing sanity checks')
+  if (req.header('X-Hub-Signature') === undefined || req.header('X-Hub-Signature').length < 40 || req.header('X-GitHub-Event') === undefined || req.header('X-GitHub-Event') === '' || req.rawBody === undefined) {
+    res.locals.hookhub.result = {
+      result: 'ERROR',
+      message: 'Missing or invalid request arguments'
+    }
+    res.locals.hookhub.statusCode = 412
+    debug('Sanity checks failed. Skipping...')
+    next('error derp')
+  } else {
+    debug('Sanity checks are clear')
+    next()
+  }
+}
+
+function defaultHandler (req, res, next) {
   debug('Handling default request')
 
   let event_type = req.header('X-GitHub-Event')
-  let payload = req.body
+  let payload = (typeof req.body === 'object') ? req.body : JSON.parse(req.rawBody)
 
+  debug('defaultHandler', 'creating hookhubDoc for', event_type, '-', payload.repository.name)
   let doc = hookhubDoc(event_type, payload.repository.name)
+  debug('defaultHandler', 'hookhubDoc:', doc)
 
+  debug('defaultHandler', 'switch:', event_type)
   switch (event_type) {
     case 'push':
       doc.setSource(payload.sender.login, payload.sender.html_url, payload.sender.avatar_url)
@@ -72,13 +77,22 @@ router.use('/', function (req, res, next) {
         doc.addMessage(commit.id, commit.message, commit.timestamp, commit.url)
       })
       break
+    default:
+      debug('defaultHandler', 'switch:', 'unknown event_type')
+      break
   }
+  debug('defaultHandler', 'switch - doc:', doc)
 
-  res.hookhub.doc = doc
-  res.hookhub.result = { result: 'OK', message: '' }
+  res.locals.hookhub.doc = doc
+  res.locals.hookhub.result = { result: 'OK', message: '' }
 
   next()
-})
+}
+
+// Routes
+debug('Plugging route')
+router.all('/', stackRegistration, sanityChecks, githubSignatureHandler, defaultHandler)
 
 module.exports = router
 module.exports.configurable = configurable
+
