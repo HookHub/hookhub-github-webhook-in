@@ -10,7 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "debug": "^4.1.1",
-    "express": "^4.16.4",
+    "express": "^4.21.0",
     "hookhub-doc": "git+https://github.com/HookHub/hookhub-doc.git",
     "request": "^2.88.0",
     "request-promise": "^4.2.4",
